@@ -20,7 +20,7 @@ export function LinkifyText({ text, isAgent, className }: LinkifyTextProps) {
           ? 'text-primary-foreground underline underline-offset-2 hover:opacity-80'
           : 'text-blue-600 underline underline-offset-2 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300',
         validate: {
-          url: (url) => /^https?:\/\//i.test(url) || /^www\./i.test(url),
+          url: (url: string) => /^https?:\/\//i.test(url) || /^www\./i.test(url),
         },
       }}
     >
