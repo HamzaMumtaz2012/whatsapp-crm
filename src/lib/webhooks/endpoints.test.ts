@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   generateWebhookSecret,
   serializeWebhookEndpoint,
-  checkWebhookUrl,
+  normalizeWebhookUrl,
   WEBHOOK_SECRET_PREFIX,
 } from './endpoints';
 
@@ -44,29 +44,16 @@ describe('serializeWebhookEndpoint', () => {
   });
 });
 
-describe('checkWebhookUrl', () => {
+describe('normalizeWebhookUrl', () => {
   it('accepts https and normalizes', () => {
-    expect(checkWebhookUrl('  https://example.com/hook  ')).toEqual({
-      ok: true,
-      url: 'https://example.com/hook',
-    });
+    expect(normalizeWebhookUrl('  https://example.com/hook  ')).toBe(
+      'https://example.com/hook'
+    );
   });
 
   it('rejects http, non-URLs, and non-strings', () => {
-    expect(checkWebhookUrl('http://example.com/hook').ok).toBe(false);
-    expect(checkWebhookUrl('not a url').ok).toBe(false);
-    expect(checkWebhookUrl(123).ok).toBe(false);
-  });
-
-  it('rejects URLs with embedded credentials with a specific message', () => {
-    for (const url of [
-      'https://user:pass@example.com/hook',
-      'https://user@example.com/hook',
-      'https://:secret@example.com/hook',
-    ]) {
-      const result = checkWebhookUrl(url);
-      expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.message).toMatch(/username or password/);
-    }
+    expect(normalizeWebhookUrl('http://example.com/hook')).toBeNull();
+    expect(normalizeWebhookUrl('not a url')).toBeNull();
+    expect(normalizeWebhookUrl(123)).toBeNull();
   });
 });

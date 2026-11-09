@@ -159,7 +159,10 @@ export async function findOrCreateContact(
  * Replace a contact's tags to exactly match `tagNames` (case-
  * insensitive; missing tags are created). Pass `[]` to clear all tags.
  * Reuses `resolveImportTagIds` so API and CSV-import tag handling stay
- * consistent.
+ * consistent — but note its `tagIdByKey` map holds EVERY tag in the
+ * account (it loads them all for case-insensitive matching), so the
+ * desired set must be derived from the *requested* names only, never
+ * from the map's values (#560).
  */
 export async function setContactTags(
   db: SupabaseClient,
@@ -167,27 +170,6 @@ export async function setContactTags(
   auditUserId: string,
   contactId: string,
   tagNames: string[]
-): Promise<void> {
-  await syncContactTags(db, accountId, auditUserId, contactId, tagNames, true);
-}
-
-export async function addContactTags(
-  db: SupabaseClient,
-  accountId: string,
-  auditUserId: string,
-  contactId: string,
-  tagNames: string[]
-): Promise<void> {
-  await syncContactTags(db, accountId, auditUserId, contactId, tagNames, false);
-}
-
-async function syncContactTags(
-  db: SupabaseClient,
-  accountId: string,
-  auditUserId: string,
-  contactId: string,
-  tagNames: string[],
-  removeUnrequested: boolean
 ): Promise<void> {
   const { tagIdByKey } = await resolveImportTagIds(db, {
     accountId,
@@ -222,9 +204,7 @@ async function syncContactTags(
   );
 
   const toAdd = [...desired].filter((id) => !existing.has(id));
-  const toRemove = removeUnrequested
-    ? [...existing].filter((id) => !desired.has(id))
-    : [];
+  const toRemove = [...existing].filter((id) => !desired.has(id));
 
   if (toRemove.length > 0) {
     const { error } = await db
@@ -267,4 +247,19 @@ export async function getContactById(
   return serializeContact(data as Record<string, unknown>);
 }
 
-export { contactSearchFilter } from '@/lib/contacts/search-filter';
+// PostgREST filter values are comma/paren-delimited; strip anything
+// that could break the `.or()` grammar before interpolating a search
+// term. Leaves the characters a phone or name legitimately contains.
+function sanitizeSearch(raw: string): string {
+  return raw.replace(/[^\p{L}\p{N} +@.\-_]/gu, '').trim();
+}
+
+export function contactSearchFilter(rawSearch: string): string | null {
+  const search = sanitizeSearch(rawSearch);
+  if (!search) return null;
+  const namePattern = search.replace(/_/g, '\\_');
+  const conditions = [`name.ilike.*${namePattern}*`];
+  const phoneDigits = search.replace(/\D/g, '');
+  if (phoneDigits) conditions.push(`phone.ilike.*${phoneDigits}*`);
+  return conditions.join(',');
+}

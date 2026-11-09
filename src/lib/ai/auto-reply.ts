@@ -168,19 +168,16 @@ export async function dispatchInboundToAiReply(
         messages,
         replyCount: conv.ai_reply_count ?? 0,
       })
-      await db
-        .from('conversations')
-        .update({ ai_autoreply_disabled: true, ai_handoff_summary: summary })
-        .eq('id', conversationId)
+      const update: Record<string, unknown> = {
+        ai_autoreply_disabled: true,
+        ai_handoff_summary: summary,
+      }
       // Only set the assignee when a target is configured AND the thread
       // isn't already owned — never stomp an existing human assignment.
-      if (config.handoffAgentId) {
-        await db
-          .from('conversations')
-          .update({ assigned_agent_id: config.handoffAgentId })
-          .eq('id', conversationId)
-          .is('assigned_agent_id', null)
+      if (config.handoffAgentId && !conv.assigned_agent_id) {
+        update.assigned_agent_id = config.handoffAgentId
       }
+      await db.from('conversations').update(update).eq('id', conversationId)
       return
     }
 

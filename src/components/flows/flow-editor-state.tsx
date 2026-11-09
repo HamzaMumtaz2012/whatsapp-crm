@@ -105,7 +105,7 @@ export interface FlowEditorContextValue {
   removeNode: (key: string) => void;
 
   // Actions
-  save: () => Promise<boolean>;
+  save: () => Promise<void>;
   setStatus: (status: BuilderState["status"]) => Promise<void>;
   deleteFlow: () => Promise<void>;
 
@@ -133,24 +133,6 @@ export function uniqueNodeKey(base: string, existing: BuilderNode[]): string {
   let i = 2;
   while (existing.some((n) => n.node_key === `${base}_${i}`)) i += 1;
   return `${base}_${i}`;
-}
-
-export function buildNewNode(type: NodeType, existing: BuilderNode[]): BuilderNode {
-  const base = slugify(NODE_META[type].slugSeed, type);
-  return {
-    node_key: uniqueNodeKey(base, existing),
-    node_type: type,
-    config: defaultConfigFor(type),
-  };
-}
-
-export function appendNode(state: BuilderState, node: BuilderNode): BuilderState {
-  return {
-    ...state,
-    nodes: [...state.nodes, node],
-    entry_node_id:
-      state.entry_node_id ?? (node.node_type === "start" ? node.node_key : null),
-  };
 }
 
 export function defaultConfigFor(type: NodeType): Record<string, unknown> {
@@ -278,10 +260,6 @@ export function FlowEditorProvider({
   }));
 
   const [saving, setSaving] = useState(false);
-  const latestNodesRef = useRef(state.nodes);
-  useEffect(() => {
-    latestNodesRef.current = state.nodes;
-  }, [state.nodes]);
   const [activating, setActivating] = useState(false);
   // dirty flips on user edits; status-only updates (after the activate
   // API succeeds) use setStateRaw so they don't falsely re-flag the
@@ -375,11 +353,9 @@ export function FlowEditorProvider({
       }
       setDirty(false);
       toast.success(t("saved"));
-      return true;
     } catch (err) {
       const msg = err instanceof Error ? err.message : t("saveFailed");
       toast.error(msg);
-      return false;
     } finally {
       setSaving(false);
     }
@@ -397,8 +373,8 @@ export function FlowEditorProvider({
         // Always save first so the activation validator sees the
         // latest state — the user shouldn't have to remember "save
         // then activate".
-        if (next === "active" && !(await save())) {
-          return;
+        if (next === "active") {
+          await save();
         }
         const res = await fetch(`/api/flows/${initialFlow.id}/activate`, {
           method: "POST",
@@ -499,10 +475,28 @@ export function FlowEditorProvider({
 
   const addNode = useCallback(
     (type: NodeType): string => {
-      const node = buildNewNode(type, latestNodesRef.current);
-      latestNodesRef.current = [...latestNodesRef.current, node];
-      setState((s) => appendNode(s, node));
-      return node.node_key;
+      const meta = NODE_META[type];
+      const base = slugify(meta.slugSeed, type);
+      let createdKey = base;
+      setState((s) => {
+        const node_key = uniqueNodeKey(base, s.nodes);
+        createdKey = node_key;
+        const next: BuilderNode = {
+          node_key,
+          node_type: type,
+          config: defaultConfigFor(type),
+        };
+        return {
+          ...s,
+          nodes: [...s.nodes, next],
+          // If this is the first node and it's a start, pick it as
+          // the entry automatically. Saves a click.
+          entry_node_id:
+            s.entry_node_id ??
+            (type === "start" ? node_key : s.entry_node_id ?? null),
+        };
+      });
+      return createdKey;
     },
     [setState],
   );

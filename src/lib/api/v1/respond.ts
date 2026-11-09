@@ -23,8 +23,7 @@ export type ApiErrorCode =
   | 'rate_limited' // per-key budget exhausted
   | 'bad_request' // malformed input
   | 'not_found'
-  | 'internal'
-  | 'unavailable';
+  | 'internal';
 
 /**
  * Typed error a route (or `requireApiKey`) can throw and have mapped

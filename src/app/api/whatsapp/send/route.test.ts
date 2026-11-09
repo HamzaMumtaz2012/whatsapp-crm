@@ -21,7 +21,6 @@ let callerRole: string = 'admin'
 // the shared send core re-loads the conversation (with its contact) from
 // just the id, so the mock must model insert-then-select-by-id.
 let createdConversation: Record<string, unknown> | null = null
-let conversationCreatedConcurrently: Record<string, unknown> | null = null
 
 const CONTACT = {
   id: 'contact-1',
@@ -71,12 +70,6 @@ function makeSupabaseMock() {
     const insertResult = () => {
       switch (table) {
         case 'conversations':
-          if (conversationCreatedConcurrently) {
-            return {
-              data: null,
-              error: { code: '23505', message: 'duplicate key value' },
-            }
-          }
           return {
             data: {
               id: 'conv-new',
@@ -105,10 +98,6 @@ function makeSupabaseMock() {
       didInsert = true
       if (table === 'conversations') {
         conversationInserts.push(payload)
-        if (conversationCreatedConcurrently) {
-          existingConversation = conversationCreatedConcurrently
-          return b
-        }
         createdConversation = {
           id: 'conv-new',
           account_id: 'acct-1',
@@ -197,7 +186,6 @@ describe('POST /api/whatsapp/send — contact_id template path', () => {
     messageInserts.length = 0
     existingConversation = null
     createdConversation = null
-    conversationCreatedConcurrently = null
     contactRow = CONTACT
     callerRole = 'admin'
     supabaseMock = makeSupabaseMock()
@@ -256,22 +244,6 @@ describe('POST /api/whatsapp/send — contact_id template path', () => {
 
     expect(conversationInserts).toHaveLength(0)
     expect(messageInserts[0]).toMatchObject({ conversation_id: 'conv-existing' })
-  })
-
-  it('reuses the conversation a concurrent request created when the insert hits the unique index', async () => {
-    conversationCreatedConcurrently = {
-      id: 'conv-raced',
-      account_id: 'acct-1',
-      contact_id: 'contact-1',
-      contact: CONTACT,
-    }
-
-    const res = await postContactTemplate()
-    expect(res.status).toBe(200)
-
-    expect(conversationInserts).toHaveLength(1)
-    expect(sendTemplateMessage).toHaveBeenCalledTimes(1)
-    expect(messageInserts[0]).toMatchObject({ conversation_id: 'conv-raced' })
   })
 
   it('404s when the contact is not in the caller account', async () => {

@@ -79,7 +79,6 @@ const nextConfig: NextConfig = {
   output: "standalone",
   experimental: {
     turbopackPluginRuntimeStrategy: "workerThreads",
-    cpus: 4,
   },
   // Stop `next dev` from overwriting the repo's hand-written AGENTS.md.
   agentRules: false,

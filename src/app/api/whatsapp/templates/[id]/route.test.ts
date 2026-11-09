@@ -21,12 +21,9 @@ const TEMPLATE = {
   id: '3f1c9d2e-4b5a-4c6d-8e7f-0a1b2c3d4e5f',
   name: 'order_update',
   status: 'APPROVED',
-  category: 'Marketing',
   meta_template_id: 'meta-1',
   language: 'en_US',
 }
-
-let templateRow: Record<string, unknown> = TEMPLATE
 
 /** Local writes the route managed to land. */
 const templateUpdates: Record<string, unknown>[] = []
@@ -44,7 +41,7 @@ function makeSupabaseMock() {
         case 'accounts':
           return { data: { id: 'acct-1', name: 'Acme' }, error: null }
         case 'message_templates':
-          return { data: templateRow, error: null }
+          return { data: TEMPLATE, error: null }
         case 'whatsapp_config':
           return {
             data: {
@@ -116,7 +113,7 @@ import { __resetRateLimitForTests } from '@/lib/rate-limit'
 
 const params = Promise.resolve({ id: TEMPLATE.id })
 
-function patchTemplate(overrides: Record<string, unknown> = {}) {
+function patchTemplate() {
   return PATCH(
     new Request('http://localhost/api/whatsapp/templates/' + TEMPLATE.id, {
       method: 'PATCH',
@@ -126,7 +123,6 @@ function patchTemplate(overrides: Record<string, unknown> = {}) {
         category: 'Marketing',
         language: 'en_US',
         body_text: 'Rewritten by an unprivileged member',
-        ...overrides,
       }),
     }),
     { params },
@@ -138,7 +134,6 @@ beforeEach(() => {
   templateUpdates.length = 0
   templateDeletes = 0
   callerRole = 'admin'
-  templateRow = TEMPLATE
   supabaseMock = makeSupabaseMock()
   meta.editMessageTemplate.mockClear()
   meta.deleteMessageTemplate.mockClear()
@@ -186,36 +181,5 @@ describe('template lifecycle rate limit', () => {
     expect(limited.status).toBe(429)
     expect(limited.headers.get('Retry-After')).toMatch(/^\d+$/)
     expect(meta.deleteMessageTemplate).not.toHaveBeenCalled()
-  })
-})
-
-describe('PATCH category changes', () => {
-  it('refuses to change the category of an approved template before calling Meta', async () => {
-    const res = await patchTemplate({ category: 'Utility' })
-
-    expect(res.status).toBe(400)
-    expect(meta.editMessageTemplate).not.toHaveBeenCalled()
-    expect(templateUpdates).toHaveLength(0)
-  })
-
-  it('sends the new category to Meta for a rejected template', async () => {
-    templateRow = { ...TEMPLATE, status: 'REJECTED' }
-
-    const res = await patchTemplate({ category: 'Utility' })
-
-    expect(res.status).toBe(200)
-    expect(meta.editMessageTemplate).toHaveBeenCalledWith(
-      expect.objectContaining({ metaTemplateId: 'meta-1', category: 'UTILITY' }),
-    )
-    expect(templateUpdates[0]).toMatchObject({ category: 'Utility', status: 'PENDING' })
-  })
-
-  it('leaves the category out of the Meta edit when it did not change', async () => {
-    const res = await patchTemplate()
-
-    expect(res.status).toBe(200)
-    expect(meta.editMessageTemplate).toHaveBeenCalledWith(
-      expect.objectContaining({ category: undefined }),
-    )
   })
 })

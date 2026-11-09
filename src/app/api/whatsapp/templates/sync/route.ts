@@ -225,9 +225,11 @@ export async function POST() {
           : null
 
       const row = {
-        // Account tenancy. account_id is NOT NULL on message_templates
+        // Account tenancy + user audit, same split as the submit
+        // route. account_id is NOT NULL on message_templates
         // post-017, so an INSERT without it errors.
         account_id: accountId,
+        user_id: userId,
         name: t.name,
         category: normalizeCategory(t.category),
         language: t.language,
@@ -244,16 +246,13 @@ export async function POST() {
         updated_at: new Date().toISOString(),
       }
 
-      const { data: matches, error: lookupErr } = await supabase
+      const { data: existing, error: lookupErr } = await supabase
         .from('message_templates')
         .select('id')
         .eq('account_id', accountId)
         .eq('name', t.name)
         .eq('language', t.language)
-        .order('updated_at', { ascending: false })
-        .order('id')
-        .limit(1)
-      const existing = matches?.[0]
+        .maybeSingle()
 
       if (lookupErr) {
         errors.push({
@@ -281,7 +280,7 @@ export async function POST() {
       } else {
         const { error: insErr } = await supabase
           .from('message_templates')
-          .insert({ ...row, user_id: userId })
+          .insert(row)
         if (insErr) {
           errors.push({
             name: t.name,

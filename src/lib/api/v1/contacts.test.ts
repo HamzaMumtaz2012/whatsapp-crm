@@ -17,7 +17,6 @@ import {
   serializeContact,
   findOrCreateContact,
   setContactTags,
-  addContactTags,
   ContactError,
   contactSearchFilter,
 } from './contacts';
@@ -124,6 +123,8 @@ describe('setContactTags', () => {
     return { db, removed };
   }
 
+  // `resolveImportTagIds` returns EVERY tag in the account (it loads them
+  // all for case-insensitive matching), not just the requested names.
   const allAccountTags = new Map([
     ['a', 'tag-a'],
     ['b', 'tag-b'],
@@ -165,18 +166,6 @@ describe('setContactTags', () => {
       ([input]) => (input as { tagId: string }).tagId
     );
     expect(added.sort()).toEqual(['tag-a', 'tag-b']);
-    expect(removed).toEqual([]);
-  });
-
-  it('addContactTags attaches only missing requested tags and removes nothing', async () => {
-    const { db, removed } = fakeContactTagsDb(['tag-a', 'tag-c']);
-
-    await addContactTags(db, 'acc', 'user', 'c1', ['a', 'b']);
-
-    const added = addContactTagAndDispatch.mock.calls.map(
-      ([input]) => (input as { tagId: string }).tagId
-    );
-    expect(added).toEqual(['tag-b']);
     expect(removed).toEqual([]);
   });
 

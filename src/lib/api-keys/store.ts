@@ -12,7 +12,6 @@
 // ============================================================
 
 import { supabaseAdmin } from '@/lib/flows/admin-client';
-import { ApiError } from '@/lib/api/v1/respond';
 
 /** Shape of an `api_keys` row as the auth path consumes it. */
 export interface ApiKeyRow {
@@ -43,11 +42,7 @@ export async function findActiveKeyByHash(
 
   if (error) {
     console.error('[api-keys/store] lookup error:', error.message);
-    throw new ApiError(
-      'unavailable',
-      'API key verification is temporarily unavailable; retry shortly',
-      503
-    );
+    return null;
   }
   if (!data) return null;
 
